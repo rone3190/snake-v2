@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Snake JS - Gradient + Levels</title>
+  <style>
+    body {
+      background: #202020;
+      color: #eee;
+      font-family: sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    #setupPanel {
+      margin: 20px auto;
+      padding: 10px;
+      background: #333;
+      display: inline-block;
+      border-radius: 8px;
+    }
+    label {
+      display: inline-block;
+      margin: 5px 10px;
+    }
+    select, button {
+      margin: 5px 10px;
+      padding: 5px;
+    }
+    #gameCanvas {
+      display: block;
+      margin: 20px auto;
+      background: black;
+    }
+    #scoreDisplay, #endMessage {
+      margin-top: 10px;
+      font-size: 20px;
+    }
+    #endMessage {
+      color: #ff4040;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Snake - JavaScript Version</h1>
+
+<div id="setupPanel">
+  <label>Snake Color:
+    <select id="colorChoice">
+      <option value="1">Green</option>
+      <option value="2">Red</option>
+      <option value="3">Blue</option>
+    </select>
+  </label>
+  <label>Level:
+    <select id="levelChoice">
+      <option value="1">Level 1</option>
+      <option value="2">Level 2</option>
+      <option value="3">Level 3</option>
+      <option value="4">Level 4</option>
+      <option value="5">Level 5</option>
+    </select>
+  </label>
+  <button id="startBtn">Start Game</button>
+</div>
+
+<canvas id="gameCanvas" width="640" height="480" ></canvas>
+
+<div id="scoreDisplay"></div>
+<div id="endMessage"></div>
+
+<script>
+// -------------------------- DATA SETUP --------------------------
+const colorOptions = {
+  "1": { head: [0, 255, 0], tail: [0, 100, 0] },  // Green
+  "2": { head: [255, 0, 0], tail: [150, 0, 0] },  // Red
+  "3": { head: [0, 0, 255], tail: [0, 0, 150] }   // Blue
+};
+
+// (width, height), fps, targetScore
+const levelInfo = {
+  "1": { width: 640,  height: 480,  fps: 10, targetScore: 100 },
+  "2": { width: 800,  height: 600,  fps: 12, targetScore: 200 },
+  "3": { width: 1024, height: 768,  fps: 14, targetScore: 300 },
+  "4": { width: 1280, height: 720,  fps: 16, targetScore: 400 },
+  "5": { width: 1920, height: 1080, fps: 20, targetScore: 500 }
+};
+
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const scoreDisplay = document.getElementById("scoreDisplay");
+const endMessage   = document.getElementById("endMessage");
+const setupPanel   = document.getElementById("setupPanel");
+const startBtn     = document.getElementById("startBtn");
+const colorSelect  = document.getElementById("colorChoice");
+const levelSelect  = document.getElementById("levelChoice");
+
+// Each snake segment is blockSize x blockSize
+let blockSize = 20;
+
+// Game State
+let snake = [];        // array of segments (tail -> head)
+let snakeSet = new Set(); // for fast collision checks
+let snakeDX = 0, snakeDY = 0;
+let snakeLength = 1;
+let score = 0;
+let targetScore = 100;
+
+let headColor = [0,255,0];
+let tailColor = [0,100,0];
+
+let gameWidth  = 640;
+let gameHeight = 480;
+let fps = 10;
+
+let foodX = 0, foodY = 0;
+let gameInterval = null;
+let gameRunning = false;
+let winner = false;
+
+function startGame() {
+  // Reset state
+  snake = [];
+  snakeSet.clear();
+  snakeDX = 0;
+  snakeDY = 0;
+  snakeLength = 1;
+  score = 0;
+  winner = false;
+  gameRunning = true;
+  endMessage.textContent = "";
+  scoreDisplay.textContent = "Score: 0";
+
+  // Place food
+  placeFood();
+
+  // Start snake in the center
+  let startX = Math.floor(gameWidth / 2 / blockSize) * blockSize;
+  let startY = Math.floor(gameHeight / 2 / blockSize) * blockSize;
+  snake.push({ x: startX, y: startY });
+  snakeSet.add(`${startX},${startY}`);
+
+  // Set up loop
+  if (gameInterval) clearInterval(gameInterval);
+  let intervalMS = 1000 / fps;
+  gameInterval = setInterval(gameLoop, intervalMS);
+}
+
+function placeFood() {
+  foodX = Math.floor(Math.random() * (gameWidth  / blockSize)) * blockSize;
+  foodY = Math.floor(Math.random() * (gameHeight / blockSize)) * blockSize;
+}
+
+function drawGradientSnake() {
+  let n = snake.length;
+  for (let i = 0; i < n; i++) {
+    const seg = snake[i];
+    let ratio = (n > 1) ? i / (n - 1) : 0;
+    let r = Math.floor(tailColor[0] + ratio * (headColor[0] - tailColor[0]));
+    let g = Math.floor(tailColor[1] + ratio * (headColor[1] - tailColor[1]));
+    let b = Math.floor(tailColor[2] + ratio * (headColor[2] - tailColor[2]));
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(seg.x, seg.y, blockSize, blockSize);
+  }
+}
+
+function gameLoop() {
+  if (!gameRunning) return;
+
+  // Move head
+  let head = snake[snake.length - 1];
+  let newHeadX = head.x + snakeDX;
+  let newHeadY = head.y + snakeDY;
+
+  // Wrap-around
+  if (newHeadX < 0) newHeadX = gameWidth  - blockSize;
+  else if (newHeadX >= gameWidth)  newHeadX = 0;
+  if (newHeadY < 0) newHeadY = gameHeight - blockSize;
+  else if (newHeadY >= gameHeight) newHeadY = 0;
+
+  // Ate food?
+  let ateFood = (newHeadX === foodX && newHeadY === foodY);
+  if (!ateFood) {
+    // remove tail
+    if (snake.length >= snakeLength && snake.length > 0) {
+      let tailSeg = snake.shift();
+      snakeSet.delete(`${tailSeg.x},${tailSeg.y}`);
+    }
+  } else {
+    // if ate => score up + length + new food
+    score += 10;
+    snakeLength++;
+    placeFood();
+    scoreDisplay.textContent = `Score: ${score}`;
+  }
+
+  // Check collision
+  if (snakeSet.has(`${newHeadX},${newHeadY}`)) {
+    gameOver(false);
+    return;
+  }
+
+  // Add new head
+  snake.push({ x: newHeadX, y: newHeadY });
+  snakeSet.add(`${newHeadX},${newHeadY}`);
+
+  // Win check
+  if (score >= targetScore) {
+    gameOver(true);
+    return;
+  }
+
+  // Draw everything
+  ctx.clearRect(0,0, gameWidth, gameHeight);
+  // food
+  ctx.fillStyle = "red";
+  ctx.fillRect(foodX, foodY, blockSize, blockSize);
+  // snake
+  drawGradientSnake();
+}
+
+function gameOver(didWin) {
+  clearInterval(gameInterval);
+  gameRunning = false;
+  winner = didWin;
+  if (didWin) {
+    endMessage.style.color = "#40ff40";
+    endMessage.textContent = "YOU WIN!";
+  } else {
+    endMessage.style.color = "#ff4040";
+    endMessage.textContent = "GAME OVER!";
+  }
+}
+
+// Key controls
+document.addEventListener("keydown", function(e){
+  if (!gameRunning) return;
+  if (e.key === "ArrowLeft" && snakeDX === 0) {
+    snakeDX = -blockSize; snakeDY = 0;
+  } else if (e.key === "ArrowRight" && snakeDX === 0) {
+    snakeDX =  blockSize; snakeDY = 0;
+  } else if (e.key === "ArrowUp" && snakeDY === 0) {
+    snakeDY = -blockSize; snakeDX = 0;
+  } else if (e.key === "ArrowDown" && snakeDY === 0) {
+    snakeDY =  blockSize; snakeDX = 0;
+  }
+});
+
+// Press SPACE to restart after game over
+document.addEventListener("keydown", function(e){
+  if (!gameRunning && (e.key === " " || e.key === "Spacebar")) {
+    startGame();
+  }
+});
+
+// Start button
+startBtn.addEventListener("click", function(){
+  let chosenCol = colorSelect.value;
+  let chosenLvl = levelSelect.value;
+  let info = levelInfo[chosenLvl];
+  gameWidth   = info.width;
+  gameHeight  = info.height;
+  fps         = info.fps;
+  targetScore = info.targetScore;
+  canvas.width  = gameWidth;
+  canvas.height = gameHeight;
+  headColor = colorOptions[chosenCol].head;
+  tailColor = colorOptions[chosenCol].tail;
+  endMessage.textContent = "";
+  startGame();
+});
+</script>
+
+</body>
+</html>
