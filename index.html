@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Snake JS - 1.5x Faster, Smaller Level 5, New Colors</title>
+  <title>Snake JS - Optional Touchpad</title>
   <style>
     body {
       background: #202020;
@@ -42,18 +42,18 @@
     }
     /* Touch Controls Layout */
     #touchControls {
-      display: inline-block;
-      margin-top: 10px; /* Less vertical space above controls */
+      display: inline-block; /* We'll hide/show this in JS */
+      margin-top: 10px;
     }
     #touchControls .row {
       display: flex;
       justify-content: center;
     }
-    /* Same size but less margin => occupies less vertical space */
+    /* Larger Buttons but smaller margin */
     #touchControls button {
       width: 96px;
       height: 96px;
-      margin: 8px;      /* Reduced from 12px */
+      margin: 8px;
       font-size: 36px;
       border-radius: 16px;
       border: none;
@@ -67,9 +67,16 @@
 </head>
 <body>
 
-<h1>Snake - Touch Controls</h1>
+<h1>Snake - Optional Touch Controls</h1>
 
 <div id="setupPanel">
+  <label>Touch Controls?
+    <select id="touchOption">
+      <option value="yes">Yes</option>
+      <option value="no" selected>No</option>
+    </select>
+  </label>
+  
   <label>Snake Color:
     <select id="colorChoice">
       <option value="1">Green</option>
@@ -79,6 +86,7 @@
       <option value="5">White</option>
     </select>
   </label>
+  
   <label>Level:
     <select id="levelChoice">
       <option value="1">Level 1</option>
@@ -88,6 +96,7 @@
       <option value="5">Level 5</option>
     </select>
   </label>
+  
   <button id="startBtn">Start Game</button>
 </div>
 
@@ -114,43 +123,39 @@
 ////////////////////////////////////////////////////////////////////////////////
 // LEVEL DATA
 ////////////////////////////////////////////////////////////////////////////////
-//
-// We keep a higher FPS for responsive input. The snake is slowed/speeded by
-// 'moveInterval' but we just changed that to 2 for ~1.5x faster movement
-// than moveInterval=3.
-//
 const levelInfo = {
+  // High FPS for smooth input, but slowed movement with moveInterval
   "1": { width: 640,   height: 480,   fps: 20, targetScore: 100 },
   "2": { width: 800,   height: 600,   fps: 22, targetScore: 200 },
   "3": { width: 1024,  height: 768,   fps: 24, targetScore: 300 },
   "4": { width: 1280,  height: 720,   fps: 26, targetScore: 400 },
-  // Smaller last level (instead of 1920x1080)
+  // Smaller final level
   "5": { width: 1366,  height: 768,   fps: 30, targetScore: 500 },
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// COLORS: Added Pink (4) and White (5)
-////////////////////////////////////////////////////////////////////////////////
+// Snake colors (with Pink & White)
 const colorOptions = {
-  "1": { head: [0,   255, 0],   tail: [0,   100, 0] },   // Green
-  "2": { head: [255, 0,   0],   tail: [150, 0,   0] },   // Red
+  "1": { head: [0,   255, 0],   tail: [0,   100, 0]   }, // Green
+  "2": { head: [255, 0,   0],   tail: [150, 0,   0]   }, // Red
   "3": { head: [0,   0,   255], tail: [0,   0,   150] }, // Blue
-  "4": { head: [255, 105, 180], tail: [180, 80, 120] },  // Pink
+  "4": { head: [255, 105, 180], tail: [180, 80, 120]  }, // Pink
   "5": { head: [255, 255, 255], tail: [150, 150, 150] }, // White
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 // PAGE ELEMENTS
 ////////////////////////////////////////////////////////////////////////////////
-const canvas      = document.getElementById("gameCanvas");
-const ctx         = canvas.getContext("2d");
-const scoreDisplay= document.getElementById("scoreDisplay");
-const endMessage  = document.getElementById("endMessage");
-const startBtn    = document.getElementById("startBtn");
-const colorSelect = document.getElementById("colorChoice");
-const levelSelect = document.getElementById("levelChoice");
+const canvas        = document.getElementById("gameCanvas");
+const ctx           = canvas.getContext("2d");
+const scoreDisplay  = document.getElementById("scoreDisplay");
+const endMessage    = document.getElementById("endMessage");
+const startBtn      = document.getElementById("startBtn");
+const colorSelect   = document.getElementById("colorChoice");
+const levelSelect   = document.getElementById("levelChoice");
+const touchOption   = document.getElementById("touchOption");
 
 // Touch Buttons
+const touchControls = document.getElementById("touchControls");
 const btnUp    = document.getElementById("btnUp");
 const btnLeft  = document.getElementById("btnLeft");
 const btnRight = document.getElementById("btnRight");
@@ -159,11 +164,11 @@ const btnDown  = document.getElementById("btnDown");
 ////////////////////////////////////////////////////////////////////////////////
 // GAME VARIABLES
 ////////////////////////////////////////////////////////////////////////////////
-let gameWidth  = 640;
-let gameHeight = 480;
-let blockSize  = 20;
-let fps        = 20;
-let targetScore= 100;
+let gameWidth   = 640;
+let gameHeight  = 480;
+let blockSize   = 20;
+let fps         = 20;
+let targetScore = 100;
 
 let snake = [];           // array of segments: tail -> head
 let snakeSet = new Set(); // for fast collision checks
@@ -172,9 +177,9 @@ let snakeSet = new Set(); // for fast collision checks
 let snakeDX = 0;
 let snakeDY = 0;
 
-// Next direction (updated on arrow/touch)
-let nextDX = 0;
-let nextDY = 0;
+// Next direction (arrow/touch)
+let nextDX  = 0;
+let nextDY  = 0;
 
 let snakeLength = 1;
 let score       = 0;
@@ -187,8 +192,7 @@ let tailColor = [0,100,0];
 
 let foodX = 0, foodY = 0;
 
-// The game runs at 'fps', but we move the snake only every 'moveInterval' frames
-// Lower moveInterval => faster snake. (It was 3 before, now 2 => ~1.5x faster)
+// Moves once every 2 frames => about 1.5x faster than if it was every 3 frames
 let moveInterval = 2;
 let frameCounter = 0;
 
@@ -196,6 +200,13 @@ let frameCounter = 0;
 // START / SETUP
 ////////////////////////////////////////////////////////////////////////////////
 function startGame() {
+  // Show/Hide touch controls based on the user’s dropdown
+  if (touchOption.value === "yes") {
+    touchControls.style.display = "inline-block";
+  } else {
+    touchControls.style.display = "none";
+  }
+
   snake = [];
   snakeSet.clear();
 
@@ -221,9 +232,8 @@ function startGame() {
 
   frameCounter = 0;
 
-  // Begin loop
   if (gameInterval) clearInterval(gameInterval);
-  let intervalMS = 1000 / fps;  
+  let intervalMS = 1000 / fps;
   gameInterval = setInterval(gameLoop, intervalMS);
 }
 
@@ -238,25 +248,22 @@ function placeFood() {
 function gameLoop() {
   if (!gameRunning) return;
 
-  // 1) Increase frame counter
   frameCounter++;
-
-  // 2) Move the snake only if we've hit 'moveInterval' frames
   if (frameCounter >= moveInterval) {
-    frameCounter = 0; // reset
+    frameCounter = 0;
 
-    // (A) Apply next direction if not 180° turn
+    // Apply direction if not 180° reversal
     if (!isOppositeDirection(snakeDX, snakeDY, nextDX, nextDY)) {
       snakeDX = nextDX;
       snakeDY = nextDY;
     }
 
-    // (B) Move head
+    // Move head
     let head = snake[snake.length - 1];
     let newHeadX = head.x + snakeDX;
     let newHeadY = head.y + snakeDY;
 
-    // (C) Wrap-around
+    // Wrap-around
     if (newHeadX < 0) {
       newHeadX = gameWidth - blockSize;
     } else if (newHeadX >= gameWidth) {
@@ -268,7 +275,7 @@ function gameLoop() {
       newHeadY = 0;
     }
 
-    // (D) Check food
+    // Eat?
     let ateFood = (newHeadX === foodX && newHeadY === foodY);
     if (!ateFood) {
       if (snake.length >= snakeLength && snake.length > 0) {
@@ -282,25 +289,25 @@ function gameLoop() {
       scoreDisplay.textContent = `Score: ${score}`;
     }
 
-    // (E) Check self-collision
+    // Self-collision
     let headKey = `${newHeadX},${newHeadY}`;
     if (snakeSet.has(headKey)) {
       gameOver(false);
       return;
     }
 
-    // (F) Add new head
+    // Add new head
     snake.push({ x: newHeadX, y: newHeadY });
     snakeSet.add(headKey);
 
-    // (G) Win check
+    // Win check
     if (score >= targetScore) {
       gameOver(true);
       return;
     }
   }
 
-  // 3) Draw every frame (even if the snake doesn't move)
+  // Draw
   ctx.clearRect(0, 0, gameWidth, gameHeight);
   ctx.fillStyle = "red";
   ctx.fillRect(foodX, foodY, blockSize, blockSize);
@@ -310,9 +317,9 @@ function gameLoop() {
 
 function drawGradientSnake() {
   let n = snake.length;
-  for (let i = 0; i < n; i++) {
+  for (let i=0; i<n; i++) {
     const seg = snake[i];
-    let ratio = (n > 1) ? i/(n - 1) : 0;
+    let ratio = (n>1) ? i/(n-1) : 0;
     let r = Math.floor(tailColor[0] + ratio*(headColor[0] - tailColor[0]));
     let g = Math.floor(tailColor[1] + ratio*(headColor[1] - tailColor[1]));
     let b = Math.floor(tailColor[2] + ratio*(headColor[2] - tailColor[2]));
@@ -403,17 +410,21 @@ btnRight.addEventListener("click", function(){
 
 // Start button
 startBtn.addEventListener("click", function(){
+  // Grab the selected level & color
   let chosenCol = colorSelect.value;
   let chosenLvl = levelSelect.value;
   let info = levelInfo[chosenLvl];
+  
   gameWidth   = info.width;
   gameHeight  = info.height;
-  fps         = info.fps;       
+  fps         = info.fps;
   targetScore = info.targetScore;
 
+  // Resize canvas
   canvas.width  = gameWidth;
   canvas.height = gameHeight;
 
+  // Set colors
   headColor = colorOptions[chosenCol].head;
   tailColor = colorOptions[chosenCol].tail;
 
