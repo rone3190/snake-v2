@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Snake JS - Optional Touchpad</title>
+  <title>Snake JS - Optional Touch Controls (Hidden at Load)</title>
   <style>
     body {
       background: #202020;
@@ -42,7 +42,7 @@
     }
     /* Touch Controls Layout */
     #touchControls {
-      display: inline-block; /* We'll hide/show this in JS */
+      display: none; /* Initially hidden at load */
       margin-top: 10px;
     }
     #touchControls .row {
@@ -105,7 +105,7 @@
 <div id="scoreDisplay"></div>
 <div id="endMessage"></div>
 
-<!-- Touch Control Buttons -->
+<!-- Touch Control Buttons (Initially hidden) -->
 <div id="touchControls">
   <div class="row">
     <button id="btnUp">▲</button>
@@ -124,12 +124,10 @@
 // LEVEL DATA
 ////////////////////////////////////////////////////////////////////////////////
 const levelInfo = {
-  // High FPS for smooth input, but slowed movement with moveInterval
   "1": { width: 640,   height: 480,   fps: 20, targetScore: 100 },
   "2": { width: 800,   height: 600,   fps: 22, targetScore: 200 },
   "3": { width: 1024,  height: 768,   fps: 24, targetScore: 300 },
   "4": { width: 1280,  height: 720,   fps: 26, targetScore: 400 },
-  // Smaller final level
   "5": { width: 1366,  height: 768,   fps: 30, targetScore: 500 },
 };
 
@@ -170,14 +168,14 @@ let blockSize   = 20;
 let fps         = 20;
 let targetScore = 100;
 
-let snake = [];           // array of segments: tail -> head
-let snakeSet = new Set(); // for fast collision checks
+let snake = [];           
+let snakeSet = new Set(); 
 
 // Current movement
 let snakeDX = 0;
 let snakeDY = 0;
 
-// Next direction (arrow/touch)
+// Next direction
 let nextDX  = 0;
 let nextDY  = 0;
 
@@ -192,7 +190,7 @@ let tailColor = [0,100,0];
 
 let foodX = 0, foodY = 0;
 
-// Moves once every 2 frames => about 1.5x faster than if it was every 3 frames
+// Speed logic: moves once every 2 frames => ~1.5x faster than 3 frames
 let moveInterval = 2;
 let frameCounter = 0;
 
@@ -200,13 +198,14 @@ let frameCounter = 0;
 // START / SETUP
 ////////////////////////////////////////////////////////////////////////////////
 function startGame() {
-  // Show/Hide touch controls based on the user’s dropdown
+  // 1) Show or hide the touch controls based on user choice
   if (touchOption.value === "yes") {
     touchControls.style.display = "inline-block";
   } else {
     touchControls.style.display = "none";
   }
 
+  // 2) Initialize game variables
   snake = [];
   snakeSet.clear();
 
@@ -224,7 +223,6 @@ function startGame() {
 
   placeFood();
 
-  // Put snake in center
   let startX = Math.floor(gameWidth / 2 / blockSize) * blockSize;
   let startY = Math.floor(gameHeight / 2 / blockSize) * blockSize;
   snake.push({ x: startX, y: startY });
@@ -410,7 +408,6 @@ btnRight.addEventListener("click", function(){
 
 // Start button
 startBtn.addEventListener("click", function(){
-  // Grab the selected level & color
   let chosenCol = colorSelect.value;
   let chosenLvl = levelSelect.value;
   let info = levelInfo[chosenLvl];
@@ -420,11 +417,9 @@ startBtn.addEventListener("click", function(){
   fps         = info.fps;
   targetScore = info.targetScore;
 
-  // Resize canvas
   canvas.width  = gameWidth;
   canvas.height = gameHeight;
 
-  // Set colors
   headColor = colorOptions[chosenCol].head;
   tailColor = colorOptions[chosenCol].tail;
 
