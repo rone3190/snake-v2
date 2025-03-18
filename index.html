@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Snake JS - With 180° Turn Fix</title>
+  <title>Snake JS - Touch Controls</title>
   <style>
     body {
       background: #202020;
@@ -40,11 +40,33 @@
       color: #ff4040;
       font-weight: bold;
     }
+    /* Touch Controls Layout */
+    #touchControls {
+      display: inline-block; 
+      margin-top: 20px; 
+    }
+    #touchControls .row {
+      display: flex; 
+      justify-content: center; 
+    }
+    #touchControls button {
+      width: 60px; 
+      height: 60px;
+      margin: 5px;
+      font-size: 24px;
+      border-radius: 8px;
+      border: none;
+      background: #444;
+      color: #fff;
+    }
+    #touchControls button:active {
+      background: #666;
+    }
   </style>
 </head>
 <body>
 
-<h1>Snake - JavaScript (Fixed Turns)</h1>
+<h1>Snake - Touch Controls</h1>
 
 <div id="setupPanel">
   <label>Snake Color:
@@ -70,6 +92,20 @@
 
 <div id="scoreDisplay"></div>
 <div id="endMessage"></div>
+
+<!-- Touch Control Buttons -->
+<div id="touchControls">
+  <div class="row">
+    <button id="btnUp">▲</button>
+  </div>
+  <div class="row">
+    <button id="btnLeft">◀</button>
+    <button id="btnRight">▶</button>
+  </div>
+  <div class="row">
+    <button id="btnDown">▼</button>
+  </div>
+</div>
 
 <script>
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,6 +135,12 @@ const startBtn     = document.getElementById("startBtn");
 const colorSelect  = document.getElementById("colorChoice");
 const levelSelect  = document.getElementById("levelChoice");
 
+// Touch buttons
+const btnUp    = document.getElementById("btnUp");
+const btnLeft  = document.getElementById("btnLeft");
+const btnRight = document.getElementById("btnRight");
+const btnDown  = document.getElementById("btnDown");
+
 // Each snake segment is blockSize x blockSize
 let blockSize = 20;
 
@@ -110,7 +152,7 @@ let snakeSet = new Set(); // for fast collision checks
 let snakeDX = 0;
 let snakeDY = 0;
 
-// Next direction (updated on key press, applied each frame)
+// Next direction (updated on arrow or button press, applied each frame)
 let nextDX = 0;
 let nextDY = 0;
 
@@ -176,14 +218,11 @@ function placeFood() {
 function gameLoop() {
   if (!gameRunning) return;
 
-  // 1) Apply the "next" direction if it's not a 180° turn
-  //    We'll do a small check to ensure we can't reverse direction instantly
-  //    (If we're going left (dx<0), we can't go right (dx>0) next, etc.)
+  // 1) Apply the next direction if it's not a 180° turn
   if (!isOppositeDirection(snakeDX, snakeDY, nextDX, nextDY)) {
     snakeDX = nextDX;
     snakeDY = nextDY;
   }
-  // If it *is* opposite, ignore it (the snake keeps going the same direction).
 
   // 2) Move the head
   let head = snake[snake.length - 1];
@@ -205,13 +244,11 @@ function gameLoop() {
   // 4) Check if we ate food
   let ateFood = (newHeadX === foodX && newHeadY === foodY);
   if (!ateFood) {
-    // remove tail
     if (snake.length >= snakeLength && snake.length > 0) {
       let tailSeg = snake.shift();
       snakeSet.delete(`${tailSeg.x},${tailSeg.y}`);
     }
   } else {
-    // we ate => score up, length, new food
     score += 10;
     snakeLength++;
     placeFood();
@@ -238,11 +275,9 @@ function gameLoop() {
 
   // 8) Draw
   ctx.clearRect(0,0, gameWidth, gameHeight);
-
   // Draw food
   ctx.fillStyle = "red";
   ctx.fillRect(foodX, foodY, blockSize, blockSize);
-
   // Draw snake
   drawGradientSnake();
 }
@@ -254,10 +289,10 @@ function drawGradientSnake() {
   let n = snake.length;
   for (let i = 0; i < n; i++) {
     const seg = snake[i];
-    let ratio = (n > 1) ? i / (n - 1) : 0;
-    let r = Math.floor(tailColor[0] + ratio * (headColor[0] - tailColor[0]));
-    let g = Math.floor(tailColor[1] + ratio * (headColor[1] - tailColor[1]));
-    let b = Math.floor(tailColor[2] + ratio * (headColor[2] - tailColor[2]));
+    let ratio = (n > 1) ? i/(n-1) : 0;
+    let r = Math.floor(tailColor[0] + ratio*(headColor[0] - tailColor[0]));
+    let g = Math.floor(tailColor[1] + ratio*(headColor[1] - tailColor[1]));
+    let b = Math.floor(tailColor[2] + ratio*(headColor[2] - tailColor[2]));
     ctx.fillStyle = `rgb(${r},${g},${b})`;
     ctx.fillRect(seg.x, seg.y, blockSize, blockSize);
   }
@@ -277,47 +312,70 @@ function gameOver(won) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// EVENT HANDLERS
+// EVENT HANDLERS (KEYBOARD + TOUCH BUTTONS)
 ////////////////////////////////////////////////////////////////////////////////
 
-// Keydown for direction changes
+// Keyboard arrow keys
 document.addEventListener("keydown", function(e){
-  // If the game isn't running, no direction changes
   if (!gameRunning) return;
-
-  // We'll store them in nextDX/nextDY. The game loop decides if it's valid.
   switch(e.key) {
     case "ArrowLeft":
-      if (snakeDX === 0) {  // Only turn left/right if we aren't moving horizontally
-        nextDX = -blockSize; 
-        nextDY = 0;
+      if (snakeDX === 0) {
+        nextDX = -blockSize; nextDY = 0;
       }
       break;
     case "ArrowRight":
       if (snakeDX === 0) {
-        nextDX = blockSize; 
-        nextDY = 0;
+        nextDX = blockSize; nextDY = 0;
       }
       break;
     case "ArrowUp":
       if (snakeDY === 0) {
-        nextDY = -blockSize; 
-        nextDX = 0;
+        nextDY = -blockSize; nextDX = 0;
       }
       break;
     case "ArrowDown":
       if (snakeDY === 0) {
-        nextDY = blockSize; 
-        nextDX = 0;
+        nextDY = blockSize; nextDX = 0;
       }
       break;
   }
 });
 
-// Press SPACE to restart if game over
+// Space to restart if game over
 document.addEventListener("keydown", function(e){
   if (!gameRunning && (e.key === " " || e.key === "Spacebar")) {
     startGame();
+  }
+});
+
+// Touch arrow buttons
+btnUp.addEventListener("click", function(){
+  if (!gameRunning) return;
+  if (snakeDY === 0) {
+    nextDY = -blockSize; 
+    nextDX = 0;
+  }
+});
+btnDown.addEventListener("click", function(){
+  if (!gameRunning) return;
+  if (snakeDY === 0) {
+    nextDY = blockSize;
+    nextDX = 0;
+  }
+});
+btnLeft.addEventListener("click", function(){
+  if (!gameRunning) return;
+  if (snakeDX === 0) {
+    nextDX = -blockSize;
+    nextDY = 0;
+  }
+});
+btnRight.addEventListener("click", function(){
+  if (!gameRunning) return;
+  if (snakeDX === 0) {
+    nextDX = blockSize;
+    nextDY = 0;
   }
 });
 
@@ -342,8 +400,6 @@ startBtn.addEventListener("click", function(){
 // HELPER: CHECK OPPOSITE DIRECTIONS
 ////////////////////////////////////////////////////////////////////////////////
 function isOppositeDirection(dx, dy, ndx, ndy) {
-  // “Opposite” means if you're going left (dx<0), then newDX>0 is a direct reversal
-  // or if going up (dy<0), then newDY>0 is a direct reversal, etc.
   return (dx === -ndx && dy === -ndy && dx !== 0 && dy !== 0);
 }
 </script>
