@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Snake JS - Gradient + Levels</title>
+  <title>Snake JS - With 180° Turn Fix</title>
   <style>
     body {
       background: #202020;
@@ -44,7 +44,7 @@
 </head>
 <body>
 
-<h1>Snake - JavaScript Version</h1>
+<h1>Snake - JavaScript (Fixed Turns)</h1>
 
 <div id="setupPanel">
   <label>Snake Color:
@@ -72,14 +72,15 @@
 <div id="endMessage"></div>
 
 <script>
-// -------------------------- DATA SETUP --------------------------
+////////////////////////////////////////////////////////////////////////////////
+// DATA SETUP & VARIABLES
+////////////////////////////////////////////////////////////////////////////////
 const colorOptions = {
-  "1": { head: [0, 255, 0], tail: [0, 100, 0] },  // Green
-  "2": { head: [255, 0, 0], tail: [150, 0, 0] },  // Red
-  "3": { head: [0, 0, 255], tail: [0, 0, 150] }   // Blue
+  "1": { head: [0, 255, 0],  tail: [0, 100, 0] },
+  "2": { head: [255, 0, 0],  tail: [150, 0, 0] },
+  "3": { head: [0, 0, 255],  tail: [0, 0, 150] }
 };
 
-// (width, height), fps, targetScore
 const levelInfo = {
   "1": { width: 640,  height: 480,  fps: 10, targetScore: 100 },
   "2": { width: 800,  height: 600,  fps: 12, targetScore: 200 },
@@ -101,10 +102,18 @@ const levelSelect  = document.getElementById("levelChoice");
 // Each snake segment is blockSize x blockSize
 let blockSize = 20;
 
-// Game State
-let snake = [];        // array of segments (tail -> head)
+// Snake state
+let snake = [];           // array of segments (tail -> head)
 let snakeSet = new Set(); // for fast collision checks
-let snakeDX = 0, snakeDY = 0;
+
+// Current actual movement
+let snakeDX = 0;
+let snakeDY = 0;
+
+// Next direction (updated on key press, applied each frame)
+let nextDX = 0;
+let nextDY = 0;
+
 let snakeLength = 1;
 let score = 0;
 let targetScore = 100;
@@ -121,12 +130,20 @@ let gameInterval = null;
 let gameRunning = false;
 let winner = false;
 
+////////////////////////////////////////////////////////////////////////////////
+// START / SETUP
+////////////////////////////////////////////////////////////////////////////////
 function startGame() {
-  // Reset state
+  // Reset everything
   snake = [];
   snakeSet.clear();
+
+  // Movement defaults
   snakeDX = 0;
   snakeDY = 0;
+  nextDX  = 0;
+  nextDY  = 0;
+
   snakeLength = 1;
   score = 0;
   winner = false;
@@ -134,7 +151,6 @@ function startGame() {
   endMessage.textContent = "";
   scoreDisplay.textContent = "Score: 0";
 
-  // Place food
   placeFood();
 
   // Start snake in the center
@@ -143,9 +159,9 @@ function startGame() {
   snake.push({ x: startX, y: startY });
   snakeSet.add(`${startX},${startY}`);
 
-  // Set up loop
+  // Begin loop
   if (gameInterval) clearInterval(gameInterval);
-  let intervalMS = 1000 / fps;
+  let intervalMS = 1000 / fps;  
   gameInterval = setInterval(gameLoop, intervalMS);
 }
 
@@ -154,6 +170,86 @@ function placeFood() {
   foodY = Math.floor(Math.random() * (gameHeight / blockSize)) * blockSize;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// GAME LOOP
+////////////////////////////////////////////////////////////////////////////////
+function gameLoop() {
+  if (!gameRunning) return;
+
+  // 1) Apply the "next" direction if it's not a 180° turn
+  //    We'll do a small check to ensure we can't reverse direction instantly
+  //    (If we're going left (dx<0), we can't go right (dx>0) next, etc.)
+  if (!isOppositeDirection(snakeDX, snakeDY, nextDX, nextDY)) {
+    snakeDX = nextDX;
+    snakeDY = nextDY;
+  }
+  // If it *is* opposite, ignore it (the snake keeps going the same direction).
+
+  // 2) Move the head
+  let head = snake[snake.length - 1];
+  let newHeadX = head.x + snakeDX;
+  let newHeadY = head.y + snakeDY;
+
+  // 3) Wrap-around
+  if (newHeadX < 0) {
+    newHeadX = gameWidth - blockSize;
+  } else if (newHeadX >= gameWidth) {
+    newHeadX = 0;
+  }
+  if (newHeadY < 0) {
+    newHeadY = gameHeight - blockSize;
+  } else if (newHeadY >= gameHeight) {
+    newHeadY = 0;
+  }
+
+  // 4) Check if we ate food
+  let ateFood = (newHeadX === foodX && newHeadY === foodY);
+  if (!ateFood) {
+    // remove tail
+    if (snake.length >= snakeLength && snake.length > 0) {
+      let tailSeg = snake.shift();
+      snakeSet.delete(`${tailSeg.x},${tailSeg.y}`);
+    }
+  } else {
+    // we ate => score up, length, new food
+    score += 10;
+    snakeLength++;
+    placeFood();
+    scoreDisplay.textContent = `Score: ${score}`;
+  }
+
+  // 5) Self-collision?
+  let headKey = `${newHeadX},${newHeadY}`;
+  if (snakeSet.has(headKey)) {
+    // collision => game over
+    gameOver(false);
+    return;
+  }
+
+  // 6) Add new head
+  snake.push({ x: newHeadX, y: newHeadY });
+  snakeSet.add(headKey);
+
+  // 7) Win check
+  if (score >= targetScore) {
+    gameOver(true);
+    return;
+  }
+
+  // 8) Draw
+  ctx.clearRect(0,0, gameWidth, gameHeight);
+
+  // Draw food
+  ctx.fillStyle = "red";
+  ctx.fillRect(foodX, foodY, blockSize, blockSize);
+
+  // Draw snake
+  drawGradientSnake();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DRAW
+////////////////////////////////////////////////////////////////////////////////
 function drawGradientSnake() {
   let n = snake.length;
   for (let i = 0; i < n; i++) {
@@ -167,66 +263,11 @@ function drawGradientSnake() {
   }
 }
 
-function gameLoop() {
-  if (!gameRunning) return;
-
-  // Move head
-  let head = snake[snake.length - 1];
-  let newHeadX = head.x + snakeDX;
-  let newHeadY = head.y + snakeDY;
-
-  // Wrap-around
-  if (newHeadX < 0) newHeadX = gameWidth  - blockSize;
-  else if (newHeadX >= gameWidth)  newHeadX = 0;
-  if (newHeadY < 0) newHeadY = gameHeight - blockSize;
-  else if (newHeadY >= gameHeight) newHeadY = 0;
-
-  // Ate food?
-  let ateFood = (newHeadX === foodX && newHeadY === foodY);
-  if (!ateFood) {
-    // remove tail
-    if (snake.length >= snakeLength && snake.length > 0) {
-      let tailSeg = snake.shift();
-      snakeSet.delete(`${tailSeg.x},${tailSeg.y}`);
-    }
-  } else {
-    // if ate => score up + length + new food
-    score += 10;
-    snakeLength++;
-    placeFood();
-    scoreDisplay.textContent = `Score: ${score}`;
-  }
-
-  // Check collision
-  if (snakeSet.has(`${newHeadX},${newHeadY}`)) {
-    gameOver(false);
-    return;
-  }
-
-  // Add new head
-  snake.push({ x: newHeadX, y: newHeadY });
-  snakeSet.add(`${newHeadX},${newHeadY}`);
-
-  // Win check
-  if (score >= targetScore) {
-    gameOver(true);
-    return;
-  }
-
-  // Draw everything
-  ctx.clearRect(0,0, gameWidth, gameHeight);
-  // food
-  ctx.fillStyle = "red";
-  ctx.fillRect(foodX, foodY, blockSize, blockSize);
-  // snake
-  drawGradientSnake();
-}
-
-function gameOver(didWin) {
+function gameOver(won) {
   clearInterval(gameInterval);
   gameRunning = false;
-  winner = didWin;
-  if (didWin) {
+  winner = won;
+  if (won) {
     endMessage.style.color = "#40ff40";
     endMessage.textContent = "YOU WIN!";
   } else {
@@ -235,21 +276,45 @@ function gameOver(didWin) {
   }
 }
 
-// Key controls
+////////////////////////////////////////////////////////////////////////////////
+// EVENT HANDLERS
+////////////////////////////////////////////////////////////////////////////////
+
+// Keydown for direction changes
 document.addEventListener("keydown", function(e){
+  // If the game isn't running, no direction changes
   if (!gameRunning) return;
-  if (e.key === "ArrowLeft" && snakeDX === 0) {
-    snakeDX = -blockSize; snakeDY = 0;
-  } else if (e.key === "ArrowRight" && snakeDX === 0) {
-    snakeDX =  blockSize; snakeDY = 0;
-  } else if (e.key === "ArrowUp" && snakeDY === 0) {
-    snakeDY = -blockSize; snakeDX = 0;
-  } else if (e.key === "ArrowDown" && snakeDY === 0) {
-    snakeDY =  blockSize; snakeDX = 0;
+
+  // We'll store them in nextDX/nextDY. The game loop decides if it's valid.
+  switch(e.key) {
+    case "ArrowLeft":
+      if (snakeDX === 0) {  // Only turn left/right if we aren't moving horizontally
+        nextDX = -blockSize; 
+        nextDY = 0;
+      }
+      break;
+    case "ArrowRight":
+      if (snakeDX === 0) {
+        nextDX = blockSize; 
+        nextDY = 0;
+      }
+      break;
+    case "ArrowUp":
+      if (snakeDY === 0) {
+        nextDY = -blockSize; 
+        nextDX = 0;
+      }
+      break;
+    case "ArrowDown":
+      if (snakeDY === 0) {
+        nextDY = blockSize; 
+        nextDX = 0;
+      }
+      break;
   }
 });
 
-// Press SPACE to restart after game over
+// Press SPACE to restart if game over
 document.addEventListener("keydown", function(e){
   if (!gameRunning && (e.key === " " || e.key === "Spacebar")) {
     startGame();
@@ -258,8 +323,8 @@ document.addEventListener("keydown", function(e){
 
 // Start button
 startBtn.addEventListener("click", function(){
-  let chosenCol = colorSelect.value;
-  let chosenLvl = levelSelect.value;
+  let chosenCol = colorSelect.value; 
+  let chosenLvl = levelSelect.value; 
   let info = levelInfo[chosenLvl];
   gameWidth   = info.width;
   gameHeight  = info.height;
@@ -272,6 +337,15 @@ startBtn.addEventListener("click", function(){
   endMessage.textContent = "";
   startGame();
 });
+
+////////////////////////////////////////////////////////////////////////////////
+// HELPER: CHECK OPPOSITE DIRECTIONS
+////////////////////////////////////////////////////////////////////////////////
+function isOppositeDirection(dx, dy, ndx, ndy) {
+  // “Opposite” means if you're going left (dx<0), then newDX>0 is a direct reversal
+  // or if going up (dy<0), then newDY>0 is a direct reversal, etc.
+  return (dx === -ndx && dy === -ndy && dx !== 0 && dy !== 0);
+}
 </script>
 
 </body>
