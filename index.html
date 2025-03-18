@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Snake JS - Optional Touch Controls (Hidden at Load)</title>
+  <title>Snake JS - Prevent Page Scrolling with Arrow Keys</title>
   <style>
     body {
       background: #202020;
@@ -42,7 +42,7 @@
     }
     /* Touch Controls Layout */
     #touchControls {
-      display: none; /* Initially hidden at load */
+      display: none; /* Hidden at load - only appears if user selects "Yes" for Touch Controls */
       margin-top: 10px;
     }
     #touchControls .row {
@@ -67,7 +67,7 @@
 </head>
 <body>
 
-<h1>Snake - Optional Touch Controls</h1>
+<h1>Snake - Optional Touch Controls + No Page Scroll</h1>
 
 <div id="setupPanel">
   <label>Touch Controls?
@@ -190,7 +190,7 @@ let tailColor = [0,100,0];
 
 let foodX = 0, foodY = 0;
 
-// Speed logic: moves once every 2 frames => ~1.5x faster than 3 frames
+// The snake effectively moves once every 2 frames => 1.5x faster than if it was 3 frames
 let moveInterval = 2;
 let frameCounter = 0;
 
@@ -198,14 +198,13 @@ let frameCounter = 0;
 // START / SETUP
 ////////////////////////////////////////////////////////////////////////////////
 function startGame() {
-  // 1) Show or hide the touch controls based on user choice
+  // Show or hide the touch controls based on user’s choice
   if (touchOption.value === "yes") {
     touchControls.style.display = "inline-block";
   } else {
     touchControls.style.display = "none";
   }
 
-  // 2) Initialize game variables
   snake = [];
   snakeSet.clear();
 
@@ -250,7 +249,7 @@ function gameLoop() {
   if (frameCounter >= moveInterval) {
     frameCounter = 0;
 
-    // Apply direction if not 180° reversal
+    // 180° turn check
     if (!isOppositeDirection(snakeDX, snakeDY, nextDX, nextDY)) {
       snakeDX = nextDX;
       snakeDY = nextDY;
@@ -273,7 +272,7 @@ function gameLoop() {
       newHeadY = 0;
     }
 
-    // Eat?
+    // Check if ate food
     let ateFood = (newHeadX === foodX && newHeadY === foodY);
     if (!ateFood) {
       if (snake.length >= snakeLength && snake.length > 0) {
@@ -340,9 +339,14 @@ function gameOver(won) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// EVENT HANDLERS
+// KEYBOARD EVENT HANDLER (PREVENT PAGE SCROLL)
 ////////////////////////////////////////////////////////////////////////////////
 document.addEventListener("keydown", function(e){
+  // Prevent default arrow key scrolling
+  if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) {
+    e.preventDefault(); 
+  }
+
   if (!gameRunning) return;
   switch(e.key) {
     case "ArrowLeft":
