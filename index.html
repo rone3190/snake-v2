@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Snake JS - Touch Controls</title>
+  <title>Snake JS - Bigger Buttons & Less Lag</title>
   <style>
     body {
       background: #202020;
@@ -42,19 +42,20 @@
     }
     /* Touch Controls Layout */
     #touchControls {
-      display: inline-block; 
-      margin-top: 20px; 
+      display: inline-block;
+      margin-top: 20px;
     }
     #touchControls .row {
-      display: flex; 
-      justify-content: center; 
+      display: flex;
+      justify-content: center;
     }
+    /* Make buttons larger */
     #touchControls button {
-      width: 60px; 
-      height: 60px;
-      margin: 5px;
-      font-size: 24px;
-      border-radius: 8px;
+      width: 96px;
+      height: 96px;
+      margin: 12px;
+      font-size: 36px;
+      border-radius: 16px;
       border: none;
       background: #444;
       color: #fff;
@@ -66,7 +67,7 @@
 </head>
 <body>
 
-<h1>Snake - Touch Controls</h1>
+<h1>Snake - Touch Controls (Bigger & Faster)</h1>
 
 <div id="setupPanel">
   <label>Snake Color:
@@ -88,7 +89,7 @@
   <button id="startBtn">Start Game</button>
 </div>
 
-<canvas id="gameCanvas" width="640" height="480" ></canvas>
+<canvas id="gameCanvas" width="640" height="480"></canvas>
 
 <div id="scoreDisplay"></div>
 <div id="endMessage"></div>
@@ -109,78 +110,80 @@
 
 <script>
 ////////////////////////////////////////////////////////////////////////////////
-// DATA SETUP & VARIABLES
+// LEVEL DATA WITH INCREASED FPS
 ////////////////////////////////////////////////////////////////////////////////
+const levelInfo = {
+  // (width, height), fps, targetScore
+  // Increased each fps by ~10 to reduce lag feeling
+  "1": { width: 640,  height: 480,  fps: 20, targetScore: 100 },
+  "2": { width: 800,  height: 600,  fps: 22, targetScore: 200 },
+  "3": { width: 1024, height: 768,  fps: 24, targetScore: 300 },
+  "4": { width: 1280, height: 720,  fps: 26, targetScore: 400 },
+  "5": { width: 1920, height: 1080, fps: 30, targetScore: 500 },
+};
+
+// Color options: head/tail
 const colorOptions = {
   "1": { head: [0, 255, 0],  tail: [0, 100, 0] },
   "2": { head: [255, 0, 0],  tail: [150, 0, 0] },
   "3": { head: [0, 0, 255],  tail: [0, 0, 150] }
 };
 
-const levelInfo = {
-  "1": { width: 640,  height: 480,  fps: 10, targetScore: 100 },
-  "2": { width: 800,  height: 600,  fps: 12, targetScore: 200 },
-  "3": { width: 1024, height: 768,  fps: 14, targetScore: 300 },
-  "4": { width: 1280, height: 720,  fps: 16, targetScore: 400 },
-  "5": { width: 1920, height: 1080, fps: 20, targetScore: 500 }
-};
+////////////////////////////////////////////////////////////////////////////////
+// PAGE ELEMENTS
+////////////////////////////////////////////////////////////////////////////////
+const canvas      = document.getElementById("gameCanvas");
+const ctx         = canvas.getContext("2d");
+const scoreDisplay= document.getElementById("scoreDisplay");
+const endMessage  = document.getElementById("endMessage");
+const startBtn    = document.getElementById("startBtn");
+const colorSelect = document.getElementById("colorChoice");
+const levelSelect = document.getElementById("levelChoice");
 
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-
-const scoreDisplay = document.getElementById("scoreDisplay");
-const endMessage   = document.getElementById("endMessage");
-const setupPanel   = document.getElementById("setupPanel");
-const startBtn     = document.getElementById("startBtn");
-const colorSelect  = document.getElementById("colorChoice");
-const levelSelect  = document.getElementById("levelChoice");
-
-// Touch buttons
+// Touch Buttons
 const btnUp    = document.getElementById("btnUp");
 const btnLeft  = document.getElementById("btnLeft");
 const btnRight = document.getElementById("btnRight");
 const btnDown  = document.getElementById("btnDown");
 
-// Each snake segment is blockSize x blockSize
-let blockSize = 20;
+////////////////////////////////////////////////////////////////////////////////
+// GAME VARIABLES
+////////////////////////////////////////////////////////////////////////////////
+let gameWidth  = 640;
+let gameHeight = 480;
+let blockSize  = 20;
+let fps        = 20;
+let targetScore= 100;
 
-// Snake state
-let snake = [];           // array of segments (tail -> head)
+let snake = [];           // array of segments: tail -> head
 let snakeSet = new Set(); // for fast collision checks
 
-// Current actual movement
+// Current movement
 let snakeDX = 0;
 let snakeDY = 0;
 
-// Next direction (updated on arrow or button press, applied each frame)
+// Next direction (updated on arrow/touch)
 let nextDX = 0;
 let nextDY = 0;
 
 let snakeLength = 1;
-let score = 0;
-let targetScore = 100;
+let score       = 0;
+let gameInterval= null;
+let gameRunning = false;
+let winner      = false;
 
 let headColor = [0,255,0];
 let tailColor = [0,100,0];
 
-let gameWidth  = 640;
-let gameHeight = 480;
-let fps = 10;
-
 let foodX = 0, foodY = 0;
-let gameInterval = null;
-let gameRunning = false;
-let winner = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 // START / SETUP
 ////////////////////////////////////////////////////////////////////////////////
 function startGame() {
-  // Reset everything
   snake = [];
   snakeSet.clear();
 
-  // Movement defaults
   snakeDX = 0;
   snakeDY = 0;
   nextDX  = 0;
@@ -195,7 +198,7 @@ function startGame() {
 
   placeFood();
 
-  // Start snake in the center
+  // Put snake in center
   let startX = Math.floor(gameWidth / 2 / blockSize) * blockSize;
   let startY = Math.floor(gameHeight / 2 / blockSize) * blockSize;
   snake.push({ x: startX, y: startY });
@@ -218,13 +221,13 @@ function placeFood() {
 function gameLoop() {
   if (!gameRunning) return;
 
-  // 1) Apply the next direction if it's not a 180° turn
+  // 1) Apply next direction if not a direct 180° turn
   if (!isOppositeDirection(snakeDX, snakeDY, nextDX, nextDY)) {
     snakeDX = nextDX;
     snakeDY = nextDY;
   }
 
-  // 2) Move the head
+  // 2) Move head
   let head = snake[snake.length - 1];
   let newHeadX = head.x + snakeDX;
   let newHeadY = head.y + snakeDY;
@@ -241,14 +244,16 @@ function gameLoop() {
     newHeadY = 0;
   }
 
-  // 4) Check if we ate food
+  // 4) Check food
   let ateFood = (newHeadX === foodX && newHeadY === foodY);
   if (!ateFood) {
+    // remove tail if not growing
     if (snake.length >= snakeLength && snake.length > 0) {
       let tailSeg = snake.shift();
       snakeSet.delete(`${tailSeg.x},${tailSeg.y}`);
     }
   } else {
+    // ate => grow + score up
     score += 10;
     snakeLength++;
     placeFood();
@@ -258,7 +263,6 @@ function gameLoop() {
   // 5) Self-collision?
   let headKey = `${newHeadX},${newHeadY}`;
   if (snakeSet.has(headKey)) {
-    // collision => game over
     gameOver(false);
     return;
   }
@@ -267,7 +271,7 @@ function gameLoop() {
   snake.push({ x: newHeadX, y: newHeadY });
   snakeSet.add(headKey);
 
-  // 7) Win check
+  // 7) Win?
   if (score >= targetScore) {
     gameOver(true);
     return;
@@ -275,21 +279,18 @@ function gameLoop() {
 
   // 8) Draw
   ctx.clearRect(0,0, gameWidth, gameHeight);
-  // Draw food
+  // Food
   ctx.fillStyle = "red";
   ctx.fillRect(foodX, foodY, blockSize, blockSize);
-  // Draw snake
+  // Snake
   drawGradientSnake();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// DRAW
-////////////////////////////////////////////////////////////////////////////////
 function drawGradientSnake() {
   let n = snake.length;
-  for (let i = 0; i < n; i++) {
+  for (let i=0; i<n; i++) {
     const seg = snake[i];
-    let ratio = (n > 1) ? i/(n-1) : 0;
+    let ratio = (n>1) ? i/(n-1) : 0;
     let r = Math.floor(tailColor[0] + ratio*(headColor[0] - tailColor[0]));
     let g = Math.floor(tailColor[1] + ratio*(headColor[1] - tailColor[1]));
     let b = Math.floor(tailColor[2] + ratio*(headColor[2] - tailColor[2]));
@@ -312,10 +313,8 @@ function gameOver(won) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// EVENT HANDLERS (KEYBOARD + TOUCH BUTTONS)
+// EVENT HANDLERS - KEYBOARD + TOUCH
 ////////////////////////////////////////////////////////////////////////////////
-
-// Keyboard arrow keys
 document.addEventListener("keydown", function(e){
   if (!gameRunning) return;
   switch(e.key) {
@@ -339,67 +338,58 @@ document.addEventListener("keydown", function(e){
         nextDY = blockSize; nextDX = 0;
       }
       break;
+    // Space to restart if game over
+    case " ":
+    case "Spacebar":
+      if (!gameRunning) startGame();
+      break;
   }
 });
 
-// Space to restart if game over
-document.addEventListener("keydown", function(e){
-  if (!gameRunning && (e.key === " " || e.key === "Spacebar")) {
-    startGame();
-  }
-});
-
-// Touch arrow buttons
+// Touch button events
 btnUp.addEventListener("click", function(){
   if (!gameRunning) return;
-  if (snakeDY === 0) {
-    nextDY = -blockSize; 
-    nextDX = 0;
-  }
+  if (snakeDY === 0) { nextDY = -blockSize; nextDX = 0; }
 });
 btnDown.addEventListener("click", function(){
   if (!gameRunning) return;
-  if (snakeDY === 0) {
-    nextDY = blockSize;
-    nextDX = 0;
-  }
+  if (snakeDY === 0) { nextDY = blockSize; nextDX = 0; }
 });
 btnLeft.addEventListener("click", function(){
   if (!gameRunning) return;
-  if (snakeDX === 0) {
-    nextDX = -blockSize;
-    nextDY = 0;
-  }
+  if (snakeDX === 0) { nextDX = -blockSize; nextDY = 0; }
 });
 btnRight.addEventListener("click", function(){
   if (!gameRunning) return;
-  if (snakeDX === 0) {
-    nextDX = blockSize;
-    nextDY = 0;
-  }
+  if (snakeDX === 0) { nextDX = blockSize; nextDY = 0; }
 });
 
 // Start button
 startBtn.addEventListener("click", function(){
-  let chosenCol = colorSelect.value; 
-  let chosenLvl = levelSelect.value; 
+  let chosenCol = colorSelect.value;
+  let chosenLvl = levelSelect.value;
   let info = levelInfo[chosenLvl];
   gameWidth   = info.width;
   gameHeight  = info.height;
-  fps         = info.fps;
+  fps         = info.fps;       // now higher => less lag
   targetScore = info.targetScore;
+
   canvas.width  = gameWidth;
   canvas.height = gameHeight;
+
   headColor = colorOptions[chosenCol].head;
   tailColor = colorOptions[chosenCol].tail;
+
   endMessage.textContent = "";
   startGame();
 });
 
 ////////////////////////////////////////////////////////////////////////////////
-// HELPER: CHECK OPPOSITE DIRECTIONS
+// HELPER: IS OPPOSITE DIRECTION
 ////////////////////////////////////////////////////////////////////////////////
 function isOppositeDirection(dx, dy, ndx, ndy) {
+  // If dx<0 => left, then ndx>0 => right => opposite, etc.
+  // This prevents 180° turns in one go.
   return (dx === -ndx && dy === -ndy && dx !== 0 && dy !== 0);
 }
 </script>
